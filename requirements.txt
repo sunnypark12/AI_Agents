@@ -1,2 +1,11 @@
 streamlit
+langchain
+langchain-community
 openai
+pydantic
+python-dotenv
+PyPDF2
+xgboost
+whisper
+faiss-cpu
+scikit-learn

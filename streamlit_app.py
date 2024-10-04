@@ -1,53 +1,55 @@
+import os
 import streamlit as st
-from openai import OpenAI
+from dotenv import load_dotenv
+from text_summarizer import run_text_summarizer_app
+from video_transcriber import transcribe_video
+from pdf_translator import translate_pdf
 
-# Show title and description.
-st.title("📄 Document question answering")
-st.write(
-    "Upload a document below and ask a question about it – GPT will answer! "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-)
+load_dotenv()
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
 if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+    st.error("OpenAI API Key not found. Please set it in your .env file.")
 else:
+    from openai import OpenAI
+    OpenAI.api_key = openai_api_key
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+    st.title("🧠 Multi-AI Agent")
+    st.write("Upload a document, video, or PDF file and choose the operation (summarization, transcription, or translation) - our agent will help!")
 
-    # Let the user upload a file via `st.file_uploader`.
-    uploaded_file = st.file_uploader(
-        "Upload a document (.txt or .md)", type=("txt", "md")
+    operation = st.selectbox(
+        "Choose an operation",
+        ("Text Summarization", "Video Transcription", "PDF Translation")
     )
 
-    # Ask the user for a question via `st.text_area`.
-    question = st.text_area(
-        "Now ask a question about the document!",
-        placeholder="Can you give me a short summary?",
-        disabled=not uploaded_file,
-    )
+    # Text Summarization
+    if operation == "Text Summarization":
+        run_text_summarizer_app(openai_api_key)
 
-    if uploaded_file and question:
+    # Video Transcription
+    elif operation == "Video Transcription":
+        uploaded_video = st.file_uploader("Upload a video file (.mp4)", type="mp4")
+        if uploaded_video:
+            video_file_path = f"/tmp/{uploaded_video.name}"
+            with open(video_file_path, "wb") as f:
+                f.write(uploaded_video.read())
 
-        # Process the uploaded file and question.
-        document = uploaded_file.read().decode()
-        messages = [
-            {
-                "role": "user",
-                "content": f"Here's a document: {document} \n\n---\n\n {question}",
-            }
-        ]
+            if st.button("Run Video Transcription"):
+                transcription = transcribe_video(video_file_path)
+                st.write("Transcribed Video Text:")
+                st.write(transcription)
 
-        # Generate an answer using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            stream=True,
-        )
+    # PDF Translation
+    elif operation == "PDF Translation":
+        uploaded_pdf = st.file_uploader("Upload a PDF file (.pdf)", type="pdf")
+        target_language = st.text_input("Target language (e.g., French, English)")
 
-        # Stream the response to the app using `st.write_stream`.
-        st.write_stream(stream)
+        if uploaded_pdf and target_language:
+            pdf_file_path = f"/tmp/{uploaded_pdf.name}"
+            with open(pdf_file_path, "wb") as f:
+                f.write(uploaded_pdf.read())
+
+            if st.button("Translate PDF"):
+                translated_text = translate_pdf(pdf_file_path, target_language)
+                st.write(f"Translated PDF Text to {target_language}:")
+                st.write(translated_text)
